@@ -3,7 +3,7 @@
 
     I, Dick Hamill, the author of this program disclaim all copyright
     in order to make this program freely available in perpetuity to
-    anyone who would like to use it. Dick Hamill, 6/1/2020
+    anyone who would like to use it. Dick Hamill, 12/1/2020
 
     Trident2020 is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -22,11 +22,10 @@
 #include "Trident2020.h"
 #include "SelfTestAndAudit.h"
 #include <EEPROM.h>
+#include "BSOS_Config.h"
 
-// The defines for sound can be used separately or in combination
 //#define USE_WAV_TRIGGER
-//#define USE_WAV_TRIGGER_1p3
-#define USE_SB100
+#define USE_WAV_TRIGGER_1p3
 
 
 #if defined(USE_WAV_TRIGGER) || defined(USE_WAV_TRIGGER_1p3)
@@ -253,12 +252,11 @@ boolean BallSaveUsed = false;
 unsigned long BallFirstSwitchHitTime = 0;
 unsigned long BallTimeInTrough = 0;
 
-boolean CurrentlyShowingBallSave = false;
-boolean SkillShotRunning = false;
 boolean RescueFromTheDeepAvailable = true;
 boolean JackpotLit = false;
 boolean ExtraBallCollected = false;
 boolean SpecialCollected = false;
+boolean ShowingModeStats = false;
 byte GameMode = GAME_MODE_SKILL_SHOT;
 byte MaxTiltWarnings = 2;
 byte NumTiltWarnings = 0;
@@ -290,11 +288,9 @@ unsigned long LastTiltWarningTime = 0;
 unsigned long NextSaucerReduction = 0;
 unsigned long SaucerHitTime = 0;
 unsigned long DropTargetClearTime = 0;
-unsigned long DropTargetClearDeadline = 0;
 unsigned long StandupDisplayEndTime = 0;
 unsigned long RolloverFlashEndTime = 0;
 unsigned long RescueFromTheDeepEndTime = 0;
-unsigned long LastDropTargetReset = 0;
 unsigned long LastMiniGameBonusTime = 0;
 
 /*
@@ -706,7 +702,7 @@ void ShowAwardLamps() {
 
 void ShowShootAgainLamp() {
 
-  if (!BallSaveUsed && BallSaveNumSeconds>0 && (CurrentTime-BallFirstSwitchHitTime)<((unsigned long)BallSaveNumSeconds*1000)) {
+  if (!BallSaveUsed && BallSaveNumSeconds>0 && (CurrentTime-BallFirstSwitchHitTime)<((unsigned long)(BallSaveNumSeconds-1)*1000)) {
     unsigned long msRemaining = ((unsigned long)(BallSaveNumSeconds-1)*1000)-(CurrentTime-BallFirstSwitchHitTime);
     BSOS_SetLampState(SHOOT_AGAIN, 1, 0, (msRemaining<1000)?100:500);
   } else {
@@ -779,11 +775,11 @@ void ShowPlayerScores(byte displayToUpdate, boolean flashCurrent, boolean dashCu
       displayScore = ScoreOverrideValue[scoreCount];
       byte numDigits = MagnitudeOfScore(displayScore);
       if (numDigits==0) numDigits = 1;
-      if (numDigits<5 && (ScoreOverrideStatus & (0x01<<scoreCount))) {
+      if (numDigits<(BALLY_STERN_OS_NUM_DIGITS-1) && (ScoreOverrideStatus & (0x01<<scoreCount))) {
         if (overrideAnimationSeed!=LastTimeOverrideAnimated) {
           updateLastTimeAnimated = true;
-          byte shiftDigits = (overrideAnimationSeed)%((7-numDigits)+(5-numDigits));
-          if (shiftDigits>=(7-numDigits)) shiftDigits = (6-numDigits)*2-shiftDigits;
+          byte shiftDigits = (overrideAnimationSeed)%(((BALLY_STERN_OS_NUM_DIGITS+1)-numDigits)+((BALLY_STERN_OS_NUM_DIGITS-1)-numDigits));
+          if (shiftDigits>=((BALLY_STERN_OS_NUM_DIGITS+1)-numDigits)) shiftDigits = (BALLY_STERN_OS_NUM_DIGITS-numDigits)*2-shiftDigits;
           byte digitCount;
           displayMask = GetDisplayMask(numDigits);
           for (digitCount=0; digitCount<shiftDigits; digitCount++) {
@@ -802,8 +798,9 @@ void ShowPlayerScores(byte displayToUpdate, boolean flashCurrent, boolean dashCu
       // No override, update scores designated by displayToUpdate
       if (allScoresShowValue==0) displayScore = CurrentScores[scoreCount];
       else displayScore = allScoresShowValue;
-      
-      if (displayToUpdate==0xFF || displayToUpdate==scoreCount || displayScore>999999) {
+
+      // If we're updating all displays, or the one currently matching the loop, or if we have to scroll
+      if (displayToUpdate==0xFF || displayToUpdate==scoreCount || displayScore>BALLY_STERN_OS_MAX_DISPLAY_SCORE) {
 
         // Don't show this score if it's not a current player score (even if it's scrollable)
         if (displayToUpdate==0xFF && (scoreCount>=CurrentNumPlayers&&CurrentNumPlayers!=0) && allScoresShowValue==0) {
@@ -811,10 +808,11 @@ void ShowPlayerScores(byte displayToUpdate, boolean flashCurrent, boolean dashCu
           continue;
         }
 
-        if (displayScore>999999) {
+        if (displayScore>BALLY_STERN_OS_MAX_DISPLAY_SCORE) {
           // Score needs to be scrolled
-          if ((CurrentTime-LastTimeScoreChanged)<5000) {
-            BSOS_SetDisplay(scoreCount, displayScore%1000000, false);  
+          if ((CurrentTime-LastTimeScoreChanged)<4000) {
+            BSOS_SetDisplay(scoreCount, displayScore%(BALLY_STERN_OS_MAX_DISPLAY_SCORE+1), false);  
+            BSOS_SetDisplayBlank(scoreCount, BALLY_STERN_OS_ALL_DIGITS_MASK);
           } else {
 
             // Scores are scrolled 10 digits and then we wait for 6
@@ -822,10 +820,11 @@ void ShowPlayerScores(byte displayToUpdate, boolean flashCurrent, boolean dashCu
               byte numDigits = MagnitudeOfScore(displayScore);
               
               // Figure out top part of score
-              if (scrollPhase<6) {
-                displayMask = 0x3F;
+              unsigned long tempScore = displayScore;
+              if (scrollPhase<BALLY_STERN_OS_NUM_DIGITS) {
+                displayMask = BALLY_STERN_OS_ALL_DIGITS_MASK;
                 for (byte scrollCount=0; scrollCount<scrollPhase; scrollCount++) {
-                  displayScore = (displayScore % 1000000) * 10;
+                  displayScore = (displayScore % (BALLY_STERN_OS_MAX_DISPLAY_SCORE+1)) * 10;
                   displayMask = displayMask >> 1;
                 }
               } else {
@@ -836,7 +835,6 @@ void ShowPlayerScores(byte displayToUpdate, boolean flashCurrent, boolean dashCu
               // Add in lower part of score
               if ((numDigits+scrollPhase)>10) {
                 byte numDigitsNeeded = (numDigits+scrollPhase)-10;
-                unsigned long tempScore = CurrentScores[scoreCount];
                 for (byte scrollCount=0; scrollCount<(numDigits-numDigitsNeeded); scrollCount++) {
                   tempScore /= 10;
                 }
@@ -1429,31 +1427,30 @@ int RunAttractMode(int curState, boolean curStateChanged) {
   }
 
   // Alternate displays between high score and blank
-  if ((CurrentTime / 6000) % 2 == 0) {
+  if (CurrentTime<16000) {
+    if (AttractLastHeadMode!=1) {
+      ShowPlayerScores(0xFF, false, false);
+      SetPlayerLamps(0);
+      BSOS_SetDisplayCredits(Credits, true);
+      BSOS_SetDisplayBallInPlay(0, true);
+    }    
+  } else if ((CurrentTime / 8000) % 2 == 0) {
 
-    if (AttractLastHeadMode != 1) {
+    if (AttractLastHeadMode != 2) {
       BSOS_SetLampState(HIGH_SCORE_TO_DATE, 1, 0, 250);
       BSOS_SetLampState(GAME_OVER, 0);
       SetPlayerLamps(0);
-
-      BSOS_SetDisplayCredits(Credits, true);
-      BSOS_SetDisplayBallInPlay(0, true);
       LastTimeScoreChanged = CurrentTime;
     }
-    AttractLastHeadMode = 1;
-
-    if (CurrentTime > 30000) ShowPlayerScores(0xFF, false, false, HighScore);
-    else ShowPlayerScores(0xFF, false, false);
-
-
+    AttractLastHeadMode = 2;
+    ShowPlayerScores(0xFF, false, false, HighScore);
   } else {
-    if (AttractLastHeadMode != 2) {
-      if (ResetScoresToClearVersion == true && CurrentTime > 30000) {
+    if (AttractLastHeadMode != 3) {
+      if (CurrentTime<32000) {
         for (int count = 0; count < 4; count++) {
           CurrentScores[count] = 0;
         }
         CurrentNumPlayers = 0;
-        ResetScoresToClearVersion = false;
       }
       BSOS_SetLampState(HIGH_SCORE_TO_DATE, 0);
       BSOS_SetLampState(GAME_OVER, 1);
@@ -1464,7 +1461,7 @@ int RunAttractMode(int curState, boolean curStateChanged) {
     ShowPlayerScores(0xFF, false, false);
     
     SetPlayerLamps(((CurrentTime / 250) % 4) + 1);
-    AttractLastHeadMode = 2;
+    AttractLastHeadMode = 3;
   }
 
   if ((CurrentTime / 10000) % 3 < 2) {
@@ -1535,9 +1532,8 @@ byte CountBits(byte byteToBeCounted) {
 
 
 void ResetDropTargets() {
-  BSOS_PushToTimedSolenoidStack(SOL_DROP_TARGET_RESET, 10, CurrentTime + 400);  
+  BSOS_PushToTimedSolenoidStack(SOL_DROP_TARGET_RESET, 12, CurrentTime + 400);  
   DropTargetClearTime = CurrentTime;
-  DropTargetClearDeadline = 0;
 
   if (GameMode&GAME_MODE_SHARP_SHOOTER_FLAG) {
     if (SharpShooterTarget!=1) BSOS_PushToTimedSolenoidStack(SOL_DROP_TARGET_1, 7, CurrentTime + 600);
@@ -1616,7 +1612,6 @@ void HandleDropTargetHit(byte switchHit, unsigned long scoreMultiplier) {
       } else {
         CurrentScores[CurrentPlayer] += 500;
         PlaySoundEffect(SOUND_EFFECT_DROP_TARGET); 
-        DropTargetClearDeadline = CurrentTime + MAX_DROP_TARGET_CLEAR_DEADLINE;
       }
     }
   }
@@ -1736,7 +1731,7 @@ int InitNewBall(bool curStateChanged, byte playerNum, int ballNum) {
     BSOS_EnableSolenoidStack();
     BSOS_SetDisplayCredits(Credits, true);
     SetPlayerLamps(playerNum + 1, 4);
-    if (ballNum!=1 || playerNum!=0) PlaySoundEffect(SOUND_EFFECT_PLAYER_1_UP+playerNum);
+    if (CurrentNumPlayers>1 && (ballNum!=1 || playerNum!=0)) PlaySoundEffect(SOUND_EFFECT_PLAYER_1_UP+playerNum);
     PlayBackgroundSongBasedOnBall(ballNum);
 
     BSOS_SetDisplayBallInPlay(ballNum);
@@ -1751,7 +1746,6 @@ int InitNewBall(bool curStateChanged, byte playerNum, int ballNum) {
     ShowBonusOnTree(1);
     BonusX = 1;
     BallSaveUsed = false;
-    SkillShotRunning = true;
     BallTimeInTrough = 0;
     NumTiltWarnings = 0;
     LastTiltWarningTime = 0;
@@ -1779,6 +1773,7 @@ int InitNewBall(bool curStateChanged, byte playerNum, int ballNum) {
     CurrentExploreTheDepths = 0;
     CurrentSharpShooter = 0; 
     ExtraBallCollected = false;
+    ShowingModeStats = false;
 
     // Start appropriate mode music
 
@@ -1787,8 +1782,7 @@ int InitNewBall(bool curStateChanged, byte playerNum, int ballNum) {
     }
 
     // Reset drop targets
-    BSOS_PushToTimedSolenoidStack(SOL_DROP_TARGET_RESET, 10, CurrentTime + 150);
-    LastDropTargetReset = CurrentTime + 20;
+    BSOS_PushToTimedSolenoidStack(SOL_DROP_TARGET_RESET, 12, CurrentTime);
   }
 
   // We should only consider the ball initialized when
@@ -1811,7 +1805,7 @@ void AddToBonus(byte bonusAddition) {
 void PlayBackgroundSongBasedOnBall(byte ballNum) {
   if (ballNum==1) {
     PlayBackgroundSong(SOUND_EFFECT_BACKGROUND_1);
-  } else if (ballNum==3) {
+  } else if (ballNum==BallsPerGame) {
     PlayBackgroundSong(SOUND_EFFECT_BACKGROUND_6);
   } else {
     PlayBackgroundSong(SOUND_EFFECT_BACKGROUND_2 + CurrentTime%4);
@@ -1843,7 +1837,7 @@ int ManageGameMode() {
   // If the playfield hasn't been validated yet, flash score and player up num
   if (BallFirstSwitchHitTime == 0) {
     if (!PlayerUpLightBlinking) {
-      SetPlayerLamps((CurrentPlayer + 1), 4, 500);
+      SetPlayerLamps((CurrentPlayer + 1), 4, 250);
       PlayerUpLightBlinking = true;
     }
   } else {
@@ -1873,15 +1867,32 @@ int ManageGameMode() {
       if (GameModeStartTime==0) {
         GameModeStartTime = CurrentTime;
       }
-      if (DropTargetClearDeadline!=0 && CurrentTime>DropTargetClearDeadline) {
-//        ResetDropTargets();
-        DropTargetClearDeadline = 0;
-      }
+
       if (CurrentTime>StandupDisplayEndTime) {
         LastStandupTargetHit = 0;
       }
 
       CheckForFeedingFrenzyQualify();
+      
+      if ( ( CurrentTime-LastTimeScoreChanged)>2000 && (((CurrentTime-LastTimeScoreChanged)/4000)%2)==0 ) {
+        if (!ShowingModeStats && (FeedingFrenzySpins[CurrentPlayer] || SharpShooterHits[CurrentPlayer] || ExploreTheDepthsHits[CurrentPlayer])) {
+          int modeStatShown = 0;
+          for (int displayCount=0; displayCount<4; displayCount++) {
+            if (displayCount!=CurrentPlayer) {
+              if (modeStatShown==0) OverrideScoreDisplay(displayCount, FeedingFrenzySpins[CurrentPlayer], false);
+              if (modeStatShown==1) OverrideScoreDisplay(displayCount, SharpShooterHits[CurrentPlayer], false);
+              if (modeStatShown==2) OverrideScoreDisplay(displayCount, ExploreTheDepthsHits[CurrentPlayer], false);
+              modeStatShown += 1;
+            }
+          }
+          ShowingModeStats = true;
+        }        
+      } else {
+        if (ShowingModeStats) {
+          ShowingModeStats = false;
+          ShowPlayerScores(0xFF, false, false);
+        }
+      }
 
       // If any mode is qualified, enable the saucer to begin mini game
       if (GameModeFlagsQualified) {
@@ -2066,6 +2077,9 @@ int ManageGameMode() {
             returnState = MACHINE_STATE_NORMAL_GAMEPLAY;
           } else {
             ShowPlayerScores(0xFF, false, false);
+            FeedingFrenzySpins[CurrentPlayer] += CurrentFeedingFrenzy;
+            ExploreTheDepthsHits[CurrentPlayer] += CurrentExploreTheDepths;
+            SharpShooterHits[CurrentPlayer] += CurrentSharpShooter;
             PlayBackgroundSong(SOUND_EFFECT_NONE);
             returnState = MACHINE_STATE_COUNTDOWN_BONUS;
           }
@@ -2272,6 +2286,8 @@ int RunGamePlayMode(int curState, boolean curStateChanged) {
         CurrentPlayer = 0;
         CurrentBallInPlay += 1;
       }
+      // Reset score at top since player changed
+      scoreAtTop = CurrentScores[CurrentPlayer];
 
       if (CurrentBallInPlay > BallsPerGame) {
         CheckHighScores();
@@ -2475,8 +2491,10 @@ int RunGamePlayMode(int curState, boolean curStateChanged) {
         case SW_DROP_TARGET_3:
         case SW_DROP_TARGET_4:
         case SW_DROP_TARGET_5:
-          HandleDropTargetHit(switchHit, scoreMultiplier);
-          if (BallFirstSwitchHitTime == 0) BallFirstSwitchHitTime = CurrentTime;
+          if (GameMode!=GAME_MODE_SKILL_SHOT || (CurrentTime-GameModeStartTime)>500) {
+            HandleDropTargetHit(switchHit, scoreMultiplier);
+            if (BallFirstSwitchHitTime == 0) BallFirstSwitchHitTime = CurrentTime;
+          }
           break;
         case SW_TOP_BUMPER:
           CurrentScores[CurrentPlayer] += (unsigned long)100*scoreMultiplier;
@@ -2558,8 +2576,8 @@ int RunGamePlayMode(int curState, boolean curStateChanged) {
     ShowBonusOnTree(Bonus);
   }
 
-  if (!ScrollingScores && CurrentScores[CurrentPlayer] > 999999) {
-    CurrentScores[CurrentPlayer] -= 999999;
+  if (!ScrollingScores && CurrentScores[CurrentPlayer] > BALLY_STERN_OS_MAX_DISPLAY_SCORE) {
+    CurrentScores[CurrentPlayer] -= BALLY_STERN_OS_MAX_DISPLAY_SCORE;
   }
 
   if (scoreAtTop != CurrentScores[CurrentPlayer]) {

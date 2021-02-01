@@ -1,7 +1,7 @@
 #include "SendOnlyWavTrigger.h"
 
 void SendOnlyWavTrigger::start(void) {
-  uint8_t txbuf[5];
+//  uint8_t txbuf[5];
 	WTSerial.begin(57600);
 }
 
