@@ -20,6 +20,9 @@ The base library is separated from this implementation so that it can be used by
   * if you have a Wav Trigger installed, uncomment this line 
     * #define USE_WAV_TRIGGER
     * or 
-    * #define USE_WAV_TRIGGER_1p3 
+    * #define USE_WAV_TRIGGER_1p3  
+  * The WAV files for the Wav Trigger board can be found here:  
+    * https://drive.google.com/file/d/1kFE97fg0SsAZb8K-F-PURkWhEmwNQXq8/view?usp=sharing  
+    
   
 Refer to the PDF or Wiki for instructions on how to build the hardware.  
