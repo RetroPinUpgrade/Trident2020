@@ -25,7 +25,7 @@
 #include "BSOS_Config.h"
 
 //#define USE_WAV_TRIGGER
-#define USE_WAV_TRIGGER_1p3
+//#define USE_WAV_TRIGGER_1p3
 
 
 #if defined(USE_WAV_TRIGGER) || defined(USE_WAV_TRIGGER_1p3)
