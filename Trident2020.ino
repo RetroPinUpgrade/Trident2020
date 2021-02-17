@@ -1251,9 +1251,7 @@ void PlaySoundEffect(byte soundEffectNum) {
 #if defined(USE_WAV_TRIGGER) || defined(USE_WAV_TRIGGER_1p3)
 
 #ifndef USE_WAV_TRIGGER_1p3
-  if (  soundEffectNum == SOUND_EFFECT_BUMPER_HIT || soundEffectNum == SOUND_EFFECT_ROLLOVER ||
-        soundEffectNum == SOUND_EFFECT_10PT_SWITCH || SOUND_EFFECT_SPINNER_HIGH ||
-        SOUND_EFFECT_SPINNER_LOW ) wTrig.trackStop(soundEffectNum);
+  if (  soundEffectNum == SOUND_EFFECT_LEFT_SPINNER || soundEffectNum == SOUND_EFFECT_RIGHT_SPINNER ) wTrig.trackStop(soundEffectNum);
 #endif
   wTrig.trackPlayPoly(soundEffectNum);
 #endif
