@@ -1035,7 +1035,7 @@ int RunSelfTest(int curState, boolean curStateChanged) {
         BSOS_SetDisplay(count, 0);
         BSOS_SetDisplayBlank(count, 0x00);
       }
-      BSOS_SetDisplayCredits(abs(curState) - 4.);
+      BSOS_SetDisplayCredits(MACHINE_STATE_TEST_SOUNDS - curState);
       BSOS_SetDisplayBallInPlay(0, false);
       CurrentAdjustmentByte = NULL;
       CurrentAdjustmentUL = NULL;
@@ -1409,6 +1409,29 @@ void PlaySoundEffect(byte soundEffectNum) {
       AddToSoundQueue(0x00, CurrentTime+650);
     break;
   }
+
+/*
+ * 
+#define SOUND_EFFECT_FEEDING_FRENZY           16
+#define SOUND_EFFECT_FEEDING_FRENZY_START     17
+#define SOUND_EFFECT_SHARP_SHOOTER_START      18
+#define SOUND_EFFECT_JACKPOT                  19
+#define SOUND_EFFECT_SHARP_SHOOTER_HIT        48
+#define SOUND_EFFECT_EXPLORE_QUALIFIED        60
+#define SOUND_EFFECT_STANDUPS_CLEARED         61
+#define SOUND_EFFECT_EXPLORE_HIT              62
+#define SOUND_EFFECT_EXPLORE_THE_DEPTHS_START 63
+#define SOUND_EFFECT_SHARP_SHOOTER_QUALIFIED  65
+#define SOUND_EFFECT_FEEDING_FRENZY_QUALIFIED 66
+#define SOUND_EFFECT_MODE_FINISHED            67
+#define SOUND_EFFECT_SS_AND_FF_START          68
+#define SOUND_EFFECT_SS_AND_ETD_START         69
+#define SOUND_EFFECT_FF_AND_ETD_START         70
+#define SOUND_EFFECT_MEGA_STACK_START         71
+#define SOUND_EFFECT_SWIM_AGAIN               72
+#define SOUND_EFFECT_DEEP_BLUE_SEA_MODE       73
+
+ */
 
 #endif
 
@@ -2222,7 +2245,8 @@ int ShowMatchSequence(boolean curStateChanged) {
   if (curStateChanged) {
     MatchSequenceStartTime = CurrentTime;
     MatchDelay = 1500;
-    MatchDigit = random(0, 10);
+//    MatchDigit = random(0, 10);
+    MatchDigit = CurrentTime%10;
     NumMatchSpins = 0;
     BSOS_SetLampState(MATCH, 1, 0);
     BSOS_SetDisableFlippers();
