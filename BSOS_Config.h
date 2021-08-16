@@ -32,14 +32,16 @@
 
 //#define BALLY_STERN_OS_USE_DIP_SWITCHES 
 //#define BALLY_STERN_OS_USE_SQUAWK_AND_TALK
-//#define BALLY_STERN_OS_USE_SB100
+#define BALLY_STERN_OS_USE_SB100
 //#define BALLY_STERN_OS_USE_SB300
-#define USE_WAV_TRIGGER
+//#define USE_WAV_TRIGGER
 //#define USE_WAV_TRIGGER_1p3
 //#define BALLY_STERN_OS_USE_AUX_LAMPS
 //#define BALLY_STERN_OS_USE_7_DIGIT_DISPLAYS
+//#define BALLY_STERN_OS_USE_6_DIGIT_CREDIT_DISPLAY_WITH_7_DIGIT_DISPLAYS
 //#define BALLY_STERN_OS_DIMMABLE_DISPLAYS
 #define BALLY_STERN_OS_SOFTWARE_DISPLAY_INTERRUPT
+
 
 // Fast boards might need a slower lamp strobe
 //#define BSOS_SLOW_DOWN_LAMP_STROBE
@@ -63,11 +65,11 @@
 #define BALLY_STERN_OS_SOFTWARE_DISPLAY_INTERRUPT_INTERVAL  48  
 
 #ifdef BALLY_STERN_OS_USE_6_DIGIT_CREDIT_DISPLAY_WITH_7_DIGIT_DISPLAYS
-#define BALLY_STERN_OS_MASK_SHIFT_1            0x60
-#define BALLY_STERN_OS_MASK_SHIFT_2            0x0C
+#define BALLY_STERN_OS_MASK_SHIFT_1              0x60
+#define BALLY_STERN_OS_MASK_SHIFT_2              0x0C
 #else
-#define BALLY_STERN_OS_MASK_SHIFT_1            0x30
-#define BALLY_STERN_OS_MASK_SHIFT_2            0x06
+#define BALLY_STERN_OS_MASK_SHIFT_1              0x30
+#define BALLY_STERN_OS_MASK_SHIFT_2              0x06
 #endif
 
 #ifdef BALLY_STERN_OS_USE_7_DIGIT_DISPLAYS
@@ -91,6 +93,13 @@
 #define CONTSOL_DISABLE_FLIPPERS      0x40
 #define CONTSOL_DISABLE_COIN_LOCKOUT  0x20
 
+// If this define (BSOS_UPDATED_TIMING) is in here
+// then the interrupt timing will be independent of the 
+// MPU clock, so the BSOS_NUM_SWITCH_LOOPS and BSOS_NUM_LAMP_LOOPS
+// won't be used
+#define BSOS_UPDATED_TIMING   1
+
+#ifndef BSOS_UPDATED_TIMING
 // This define needs to be set for the number of loops 
 // needed to get a delay of 80 us
 // So, set it to (0.000080) / (1/Clock Frequency)
@@ -99,7 +108,10 @@
 // 60 us
 // So, set this to (0.000060) / (1/Clock Frequency)
 #define BSOS_NUM_LAMP_LOOPS   30
-
+#else
+#define BSOS_SWITCH_DELAY_IN_MICROSECONDS 200
+#define BSOS_TIMING_LOOP_PADDING_IN_MICROSECONDS  75
+#endif 
 
 #define BSOS_CREDITS_EEPROM_BYTE          5
 #define BSOS_HIGHSCORE_EEPROM_START_BYTE  1
