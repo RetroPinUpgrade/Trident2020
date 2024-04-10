@@ -1,6 +1,7 @@
 ## Trident 2020
 
-Note: This code no longer has a dependency on BallySternOS files (they're included here).
+Note: This code no longer has a dependency on BallySternOS files (they're included here).  
+Note 2: This is an older (unsupported) version of Trident 2020, kept here only because it's the last version of Trident2020 that's still small enough to run on the Nano (for Rev 1 & 2 boards).  
 
 ### To use this code
 * Download the zip file (Code > Download ZIP) or clone the repository to your hard drive.  
